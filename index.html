@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interest Rate Calculator</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-family: monospace;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .btn {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            background-color: #1d4ed8;
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid #cbd5e1;
+            color: #64748b;
+            font-size: 0.9rem;
+            padding: 8px;
+        }
+        
+        .btn-outline:hover {
+            background-color: #f1f5f9;
+            color: var(--text);
+        }
+
+        .result-box {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background-color: #eff6ff;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary);
+            display: none;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-value {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Recurring Deposit Calculator</h1>
+
+    <div class="input-group">
+        <label>Monthly Deposits (One per line)</label>
+        <button id="loadExampleBtn" class="btn btn-outline">Load Example Data</button>
+        <textarea id="depositInput" placeholder="4000&#10;4000&#10;4000..."></textarea>
+    </div>
+
+    <div class="input-group">
+        <label>Final Maturity Amount (Received)</label>
+        <input type="number" id="finalAmount" placeholder="e.g. 95000">
+    </div>
+
+    <button id="calcBtn" class="btn">Calculate Interest Rate</button>
+
+    <div id="result" class="result-box">
+        <div class="result-item">
+            <span>Annual Nominal Rate:</span>
+            <span class="result-value" id="annualRate">0.00%</span>
+        </div>
+        <div class="result-item" style="color: #64748b; font-size: 0.9rem;">
+            <span>Monthly Rate:</span>
+            <span id="monthlyRate">0.00%</span>
+        </div>
+        <div class="result-item" style="color: #64748b; font-size: 0.9rem; margin-top:10px; border-top:1px solid #cbd5e1; padding-top:5px;">
+            <span>Total Invested:</span>
+            <span id="totalInvested">0</span>
+        </div>
+        <div class="result-item" style="color: #64748b; font-size: 0.9rem;">
+            <span>Total Profit:</span>
+            <span id="totalProfit" style="color: green">0</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. IRR Algorithm (Newton-Raphson)
+    function calculateIRR(values, guess) {
+        if (guess === undefined) guess = 0.1;
+        
+        var maxIter = 1000;
+        var precision = 1e-7;
+        var rate = guess;
+
+        for (var i = 0; i < maxIter; i++) {
+            var npv = 0;
+            var d_npv = 0;
+
+            for (var t = 0; t < values.length; t++) {
+                var val = values[t];
+                var pow = Math.pow(1 + rate, t);
+                
+                npv += val / pow;
+                d_npv -= (t * val) / Math.pow(1 + rate, t + 1);
+            }
+
+            if (Math.abs(npv) < precision) return rate;
+
+            // Safe guard against dividing by zero
+            if (Math.abs(d_npv) < 1e-10) return null;
+
+            var newRate = rate - (npv / d_npv);
+
+            if (Math.abs(newRate - rate) < precision) return newRate;
+
+            rate = newRate;
+        }
+        return null;
+    }
+
+    // 2. Main Calculate Function
+    function performCalculation() {
+        var depositText = document.getElementById('depositInput').value;
+        var finalAmountInput = document.getElementById('finalAmount').value;
+        var resultBox = document.getElementById('result');
+
+        if (!depositText || !finalAmountInput) {
+            alert("Please enter deposits and final amount");
+            return;
+        }
+
+        var finalAmount = parseFloat(finalAmountInput);
+
+        // Split text by new lines or commas
+        var rawLines = depositText.split(/\r?\n|,/);
+        var deposits = [];
+        
+        for(var i=0; i<rawLines.length; i++) {
+            var val = parseFloat(rawLines[i].trim());
+            if(!isNaN(val)) {
+                deposits.push(val);
+            }
+        }
+
+        if (deposits.length === 0) {
+            alert("No valid deposits found.");
+            return;
+        }
+
+        var totalInvested = 0;
+        var cashFlows = [];
+
+        // Add deposits as negative values
+        for(var j=0; j<deposits.length; j++) {
+            totalInvested += deposits[j];
+            cashFlows.push(-Math.abs(deposits[j]));
+        }
+
+        // Add final amount as positive value at the end
+        cashFlows.push(Math.abs(finalAmount));
+
+        // Calculate
+        var monthlyRate = calculateIRR(cashFlows);
+
+        if (monthlyRate === null || monthlyRate < -0.9) {
+            alert("Could not calculate a valid rate. Please check your inputs.");
+            return;
+        }
+
+        var annualNominalRate = monthlyRate * 12;
+
+        // Update UI
+        document.getElementById('annualRate').innerText = (annualNominalRate * 100).toFixed(2) + "%";
+        document.getElementById('monthlyRate').innerText = (monthlyRate * 100).toFixed(4) + "%";
+        document.getElementById('totalInvested').innerText = "₹ " + totalInvested.toLocaleString();
+        document.getElementById('totalProfit').innerText = "₹ " + (finalAmount - totalInvested).toLocaleString();
+
+        resultBox.style.display = "block";
+    }
+
+    // 3. Example Data Loader
+    function loadExample() {
+        // Using standard string concatenation for safety
+        var ex = "4000\n4000\n4000\n4000\n4000\n";
+        ex += "4300\n4340\n4400\n4430\n4500\n4550\n4600\n";
+        ex += "4650\n4700\n4750\n4800\n4850\n4900\n4950";
+        
+        document.getElementById('depositInput').value = ex;
+        document.getElementById('finalAmount').value = 95000;
+        performCalculation();
+    }
+
+    // 4. Attach Events (Safest way to avoid ReferenceErrors)
+    document.addEventListener('DOMContentLoaded', function() {
+        var calcBtn = document.getElementById('calcBtn');
+        var loadBtn = document.getElementById('loadExampleBtn');
+        
+        if(calcBtn) calcBtn.addEventListener('click', performCalculation);
+        if(loadBtn) loadBtn.addEventListener('click', loadExample);
+        
+        console.log("Interest Calculator Loaded Successfully");
+    });
+</script>
+
+</body>
+</html>
